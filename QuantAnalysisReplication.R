@@ -6,8 +6,9 @@
 #Please see license.txt in Github for the license for this code and the data files.  
 
 #Ensure that any data files and LLMTextHelper.R are in the working directory
-#Set working directory (you may need to change this to your own working director)
-setwd("~/R/LLMProjective")
+#Set working directory (you will need to change this to your own working directory
+#or put all files in your default working directory)
+#setwd("~/R/JMAProjective")
 
 #The helper functions I wrote for the STM topic modeling
 source("ProjectiveHelper.R")
@@ -221,7 +222,7 @@ gg_hybrid <- ggplot() +
 gg_hybrid
 
 #################################################################
-#Top 10 terms for each topic
+#Top 10 terms for each topic for Word Association
 #################################################################
 
 #Plot the top 10 terms for each topic
@@ -332,6 +333,11 @@ SPrao_scott <- svychisq(
   statistic = "F"
 )
 SPrao_scott
+#Note: The topic modeling gives stable topics, which is why we can hard-code the 
+#categories. There may be minor assignment differences due to stochasticity. However, 
+#the published version contains an error in the degrees of freedom 
+#(we found it very shortly after correcting proofs)
+#F(21.043,3577.280) = 32.205. The p value is unchanged at p < 0.001.
 
 #################################################################
 #Correspondence analysis for Sentence Positive
@@ -445,7 +451,7 @@ gg_hybrid <- ggplot() +
 gg_hybrid
 
 #################################################################
-#Top 10 terms for each topic
+#Top 10 terms for each topic for Sentence Positive
 #################################################################
 
 #Plot the top 10 terms for each topic
@@ -481,11 +487,13 @@ ggplot(terms_df, aes(x = token, y = probability, fill = topic)) +
 #Topic modeling for Sentence Negative
 #################################################################
 
-#Sentence Negative Human
+#Sentence negative. Run analysis across all k to understand and evaluate
+#solutions with respect to the number of topics
 kVector<-seq(5,15,1)
 k_result<-STMTopicModelSearch(SNMeltData,kVector)
 SNCompare<-PlotTopicResults(k_result,ChooseMetrics=c("semcoh","heldout"))
 
+#We chose a 7 topic solution for the paper.
 STMAll<-STMTopicModel(SNMeltData,Maxk=7)
 stm_fit<-STMAll$stm_fit
 stm_input<-STMAll$stm_input
@@ -649,3 +657,36 @@ gg_hybrid <- ggplot() +
   )
 
 gg_hybrid
+
+#################################################################
+#Top 10 terms for each topic for Sentence Negative
+#################################################################
+
+#Plot the top 10 terms for each topic
+top_n <- 10
+beta <- exp(stm_fit$beta$logbeta[[1]])
+vocab <- stm_fit$vocab
+terms_df <- as.data.frame(beta) %>%
+  setNames(vocab) %>%
+  mutate(topic_num = row_number()) %>%
+  pivot_longer(
+    cols = -topic_num,
+    names_to = "token",
+    values_to = "probability"
+  ) %>%
+  group_by(topic_num) %>%
+  slice_max(probability, n = top_n, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(
+    topic = TopicList[topic_num],
+    topic = factor(topic, levels = TopicList),
+    token = reorder_within(token, probability, topic)
+  )
+
+ggplot(terms_df, aes(x = token, y = probability, fill = topic)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip() +
+  scale_x_reordered() +
+  labs(x = "Term", y = "Probability") +
+  theme_minimal()
